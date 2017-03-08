@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+  
+  <xs:complexType name="Entry">
+    <xs:sequence>
+      <xs:element name="settings" type="Settings" minOccurs="0"/>
+      <xs:element name="transitions">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="transition" type="Transition" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="namespace" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="Transition">
+    <xs:sequence>
+      <xs:element name="switch" type="Switch" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="fromstate" type="xs:string" use="required"/>
+    <xs:attribute name="event" type="xs:string" use="required"/>
+    <xs:attribute name="tostate" type="xs:string" use="optional"/>
+    <xs:attribute name="parameter-type" type="xs:string" use="optional"/>
+  </xs:complexType>
+  
+  <xs:complexType name="Switch">
+    <xs:sequence>
+      <xs:element name="case" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="when" type="xs:string" use="required"/>
+          <xs:attribute name="tostate" type="xs:string" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="default" minOccurs="0">
+        <xs:complexType>
+          <xs:attribute name="tostate" type="xs:string" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Settings">
+    <xs:all>
+      <xs:element name="item-field-name" type="xs:string"/>
+      <xs:element name="static-state-class" type="xs:string" minOccurs="0"/>
+      <xs:element name="usings" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="using" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+  
+  <xs:element name="entry" type="Entry" />
+  
+</xs:schema>

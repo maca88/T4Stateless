@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<entry name="Smartphone" namespace="T4Stateless.Tests">
+  <settings>
+    <async>false</async>
+    <item-field-name>_item</item-field-name>
+    <state-type>SmartphoneState</state-type>
+    <static-state-class>SmartphoneState</static-state-class>
+    <usings>
+      <using>Models</using>
+    </usings>
+  </settings>
+  
+  <transitions>
+    <transition fromstate="Off" event="Boot">
+      <switch>
+        <case when="_item.BatteryLevel &lt; 5" />
+        <default tostate="Idle"></default>
+      </switch>
+    </transition>
+    <transition fromstate="Idle" event="Call" parameter-type="string">
+      <switch>
+        <case when="_item.SimInserted" tostate="Calling"/>
+        <case when="_item.BatteryLevel &lt; 5" tostate="Off"/>
+        <default tostate="Idle"></default>
+      </switch>
+    </transition>
+    <transition fromstate="Idle" event="TurnOff" tostate="Off" />
+
+    <transition fromstate="Calling" event="Cancel" tostate="Idle" />
+    <transition fromstate="Calling" event="Connect" tostate="CallConnected" />
+
+    <transition fromstate="CallConnected" event="HungUp" tostate="Idle" />
+    <transition fromstate="CallConnected" event="PlaceOnHold" tostate="CallOnHold" />
+    
+    <transition fromstate="CallOnHold" event="Resume">
+      <switch>
+        <case when="_item.BatteryLevel &lt; 5" tostate="Off" />
+        <case when="_item.Locked" />
+        <default tostate="CallConnected"></default>
+      </switch>
+    </transition>
+    
+    
+  </transitions>
+</entry>
