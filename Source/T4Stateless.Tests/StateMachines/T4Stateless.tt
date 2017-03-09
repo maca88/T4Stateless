@@ -42,12 +42,14 @@ using Stateless;
         var xml = File.ReadAllText(xmlPath);
         xmlvalidator.Validate(xml, xmlPath);
         var entry = Entry.Deserialize(xml);
-        manager.StartNewFile(string.Format("{0}.generated.cs", entry.name));
+        var fileName = Path.GetFileNameWithoutExtension(xmlPath);
+        manager.StartNewFile(string.Format("{0}.generated.cs", fileName));
         //var states = new HashSet<string>(entry.GetAllStates());
+        var isAsync = entry.settings.async;
         var stateType = entry.settings.statetype ?? "string";
         var events = new HashSet<string>(entry.GetAllEvents());
         var transitionGroups = entry.GetTransitionGroups().ToList();
-        Func<string, string> formatConditionFn = (s) =>
+        Func<string, string> formatConditionFn = s =>
         {
             return s.Replace($"{entry.settings.itemfieldname}.", "");
 
@@ -60,6 +62,10 @@ using Stateless;
         if (invalidEvents.Any())
         {
             throw new NotSupportedException($"Events that have multiple parameter types are not supported:{Environment.NewLine}{string.Join(Environment.NewLine, invalidEvents)}");
+        }
+        if (isAsync)
+        {
+            entry.settings.usings.Add("System.Threading.Tasks");
         }
 #>
 
@@ -86,9 +92,9 @@ namespace <#=entry.@namespace#>
 #>
     }
 
-    public abstract class <#=entry.name#>FireBaseEvent<#=(string.IsNullOrEmpty(entry.settings.fireeventbasetype) ? "" : " : " + entry.settings.fireeventbasetype)#>
+    public abstract class <#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event<#=(string.IsNullOrEmpty(entry.settings.fireeventbasetype) ? "" : " : " + entry.settings.fireeventbasetype)#>
     {
-        protected <#=entry.name#>FireBaseEvent(<#=entry.name#> item, <#=entry.name#>Event evt, bool isReentry)
+        protected <#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event(<#=entry.name#> item, <#=entry.name#>Event evt, bool isReentry)
         {
             <#=entry.name#> = item;
             Event = evt;
@@ -101,20 +107,41 @@ namespace <#=entry.@namespace#>
 
         public bool IsReentry { get; }
     }
+
+    public abstract class <#=entry.name#>Transition<#=(isAsync ? "Async" : "")#>Event : <#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event
+    {
+        protected <#=entry.name#>Transition<#=(isAsync ? "Async" : "")#>Event(<#=stateType#> oldState, <#=stateType#> newState, <#=entry.name#> item, <#=entry.name#>Event evt) : base(item, evt, false)
+        {
+            OldState = oldState;
+            NewState = newState;
+        }
+
+        public <#=stateType#> OldState { get; }
+
+        public <#=stateType#> NewState { get; }
+    }
+
+    public abstract class <#=entry.name#>Reentry<#=(isAsync ? "Async" : "")#>Event : <#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event
+    {
+        protected <#=entry.name#>Reentry<#=(isAsync ? "Async" : "")#>Event(<#=stateType#> state, <#=entry.name#> item, <#=entry.name#>Event evt) : base(item, evt, true)
+        {
+            State = state;
+        }
+
+        public <#=stateType#> State { get; }
+    }
+
 <#
-        foreach (var g in entry.GetTransitionGroups().GroupBy(o => new {o.Event, o.ParameterType, o.Internal}))
+        foreach (var g in entry.GetTransitionGroups().GroupBy(o => new {o.Event, o.ParameterType, Internal = o.IsReentry}))
         {
             if (g.Key.Internal)
             {
 #>
-    public class <#=entry.name#>Fire<#=g.Key.Event#>ReentryEvent : <#=entry.name#>FireBaseEvent
+    public class <#=entry.name#>Fire<#=g.Key.Event#>Reentry<#=(isAsync ? "Async" : "")#>Event : <#=entry.name#>Reentry<#=(isAsync ? "Async" : "")#>Event
     {
-        public <#=entry.name#>Fire<#=g.Key.Event#>ReentryEvent(<#=stateType#> state, <#=entry.name#> item<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} parameter")#>) : base(item, <#=entry.name#>Event.<#=g.Key.Event#>, true)
-        {
-            State = state;<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : "\r\n            Parameter = parameter;")#>
-        }
-        
-        public <#=stateType#> State { get; }<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"\r\n\r\n        public {g.Key.ParameterType} Parameter {{ get; }}")#>
+        public <#=entry.name#>Fire<#=g.Key.Event#>Reentry<#=(isAsync ? "Async" : "")#>Event(<#=stateType#> state, <#=entry.name#> item<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} parameter")#>) : base(state, item, <#=entry.name#>Event.<#=g.Key.Event#>)
+        {<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : "\r\n            Parameter = parameter;")#>
+        }<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"\r\n\r\n        public {g.Key.ParameterType} Parameter {{ get; }}")#>
     }
 
 <#
@@ -122,17 +149,11 @@ namespace <#=entry.@namespace#>
             else
             {
 #>
-    public class <#=entry.name#>Fire<#=g.Key.Event#>Event : <#=entry.name#>FireBaseEvent
+    public class <#=entry.name#>Fire<#=g.Key.Event#><#=(isAsync ? "Async" : "")#>Event : <#=entry.name#>Transition<#=(isAsync ? "Async" : "")#>Event
     {
-        public <#=entry.name#>Fire<#=g.Key.Event#>Event(<#=stateType#> oldState, <#=stateType#> newState, <#=entry.name#> item<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} parameter")#>) : base(item, <#=entry.name#>Event.<#=g.Key.Event#>, false)
-        {
-            OldState = oldState;
-            NewState = newState;<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : "\r\n            Parameter = parameter;")#>
-        }
-        
-        public <#=stateType#> OldState { get; }
-
-        public <#=stateType#> NewState { get; }<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"\r\n\r\n        public {g.Key.ParameterType} Parameter {{ get; }}")#>
+        public <#=entry.name#>Fire<#=g.Key.Event#><#=(isAsync ? "Async" : "")#>Event(<#=stateType#> oldState, <#=stateType#> newState, <#=entry.name#> item<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} parameter")#>) : base(oldState, newState, item, <#=entry.name#>Event.<#=g.Key.Event#>)
+        {<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : "\r\n            Parameter = parameter;")#>
+        }<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"\r\n\r\n        public {g.Key.ParameterType} Parameter {{ get; }}")#>
     }
 
 <#
@@ -149,15 +170,25 @@ namespace <#=entry.@namespace#>
     {
         private readonly StateMachine<<#=stateType#>, <#=entry.name#>Event> _sm;
         private readonly <#=entry.name#> <#=entry.settings.itemfieldname#>;
-        private readonly Action<<#=entry.name#>FireBaseEvent> _handleEventAction;
+        private readonly <#=(isAsync ? "Func" : "Action")#><<#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event<#=(isAsync ? ", Task" : "")#>> _handleEventAction;
         private Dictionary<<#=entry.name#>Event, Dictionary<Type, StateMachine<<#=stateType#>, <#=entry.name#>Event>.TriggerWithParameters>> _parameters =
             new Dictionary<<#=entry.name#>Event, Dictionary<Type, StateMachine<<#=stateType#>, <#=entry.name#>Event>.TriggerWithParameters>>();
-
-        public <#=entry.name#>StateMachine(<#=entry.name#> <#=entry.settings.itemfieldname.Trim('_')#>, Func<<#=entry.name#>, <#=stateType#>> stateAccessor, Action<<#=entry.name#>, <#=stateType#>> stateMutator, Action<<#=entry.name#>FireBaseEvent> handleEventAction)
+<#
+        var injectParamString = "";
+        foreach (var inject in entry.settings.injects)
         {
-            if (<#=entry.settings.itemfieldname.Trim('_')#> == null)
+            injectParamString += $", {inject.type} {inject.fieldname.TrimStart('_')}";
+#>
+        private <#=inject.type#> <#=inject.fieldname#>;
+<#
+        }
+#>
+
+        public <#=entry.name#>StateMachine(<#=entry.name#> <#=entry.settings.itemfieldname.TrimStart('_')#>, Func<<#=entry.name#>, <#=stateType#>> stateAccessor, Action<<#=entry.name#>, <#=stateType#>> stateMutator, <#=(isAsync ? "Func" : "Action")#><<#=entry.name#>Fire<#=(isAsync ? "Async" : "")#>Event<#=(isAsync ? ", Task" : "")#>> handleEventAction<#=injectParamString#>)
+        {
+            if (<#=entry.settings.itemfieldname.TrimStart('_')#> == null)
             {
-                throw new ArgumentNullException(nameof(<#=entry.settings.itemfieldname.Trim('_')#>));
+                throw new ArgumentNullException(nameof(<#=entry.settings.itemfieldname.TrimStart('_')#>));
             }
             if (stateAccessor == null)
             {
@@ -171,11 +202,17 @@ namespace <#=entry.@namespace#>
             {
                 throw new ArgumentNullException(nameof(handleEventAction));
             }
-            <#=entry.settings.itemfieldname#> = <#=entry.settings.itemfieldname.Trim('_')#>;
+            <#=entry.settings.itemfieldname#> = <#=entry.settings.itemfieldname.TrimStart('_')#>;
             _handleEventAction = handleEventAction;
             _sm = new StateMachine<<#=stateType#>, <#=entry.name#>Event>(() => stateAccessor(<#=entry.settings.itemfieldname#>), (val) => stateMutator(<#=entry.settings.itemfieldname#>, val));
-            _sm.OnUnhandledTrigger(OnTransitionDeclined);
-            _sm.OnTransitioned(OnTransitioned);
+<#
+        foreach (var inject in entry.settings.injects)
+        {
+#>
+            <#=(inject.fieldname.StartsWith("_") ? "" : "this.")#><#=inject.fieldname#> = <#=inject.fieldname.TrimStart('_')#>;
+<#
+        }
+#>
 <#
         foreach (var state in transitionGroups.Where(o => !string.IsNullOrEmpty(o.ParameterType)).GroupBy(o => new { o.Event, o.ParameterType }))
         {
@@ -212,7 +249,13 @@ namespace <#=entry.@namespace#>
 
                     foreach (var c in transition.@switch.@case)
                     {
-                        if (!string.IsNullOrEmpty(c.tostate))
+                        if (c.ignore)
+                        {
+#>
+                .IgnoreIf(<#=entry.name #>Event.<#=transition.@event #>, predicate<#=transition.fromstate #><#=transition.@event #><#=idx #>, "<#=formatConditionFn(c.when)#>")
+<#
+                        }
+                        else if (!string.IsNullOrEmpty(c.tostate))
                         {
 #>
                 .PermitIf(<#=entry.name #>Event.<#=transition.@event #>, <#=entry.GetStateCode(c.tostate) #>, predicate<#=transition.fromstate #><#=transition.@event #><#=idx #>, "<#=formatConditionFn(c.when)#>")
@@ -239,7 +282,13 @@ namespace <#=entry.@namespace#>
                             }
                             idx++;
                         }
-                        if (!string.IsNullOrEmpty(def.tostate) && def.tostate != transition.fromstate)
+                        if (def.ignore)
+                        {
+#>
+                .IgnoreIf(<#=entry.name #>Event.<#=transition.@event #>, () => <#=predicate#>, "Otherwise")
+<#
+                        }
+                        else if (!string.IsNullOrEmpty(def.tostate) && def.tostate != transition.fromstate)
                         {
 #>
                 .PermitIf(<#=entry.name #>Event.<#=transition.@event #>, <#=entry.GetStateCode(def.tostate) #>, () => <#=predicate#>, "Otherwise")
@@ -253,6 +302,12 @@ namespace <#=entry.@namespace#>
                         }
 
                     }
+                }
+                else if (transition.ignore)
+                {
+#>
+                .Ignore(<#=entry.name #>Event.<#=transition.@event #>)
+<#
                 }
                 else if (!string.IsNullOrEmpty(transition.tostate))
                 {
@@ -275,13 +330,13 @@ namespace <#=entry.@namespace#>
                 if (!string.IsNullOrEmpty(prevTransition.ParameterType))
                 {
 #>
-                .OnEntryFrom(GetParameter<<#=prevTransition.ParameterType#>>(<#=entry.name#>Event.<#=prevTransition.Event#>), (p, t) => HandleEvent(t, p))
+                .OnEntryFrom<#=(isAsync ? "Async" : "")#>(GetParameter<<#=prevTransition.ParameterType#>>(<#=entry.name#>Event.<#=prevTransition.Event#>), (p, t) => HandleEvent(t, p))
 <#
                 }
                 else
                 {
 #>
-                .OnEntryFrom(<#=entry.name#>Event.<#=prevTransition.Event#>, t => HandleEvent(t))
+                .OnEntryFrom<#=(isAsync ? "Async" : "")#>(<#=entry.name#>Event.<#=prevTransition.Event#>, t => HandleEvent(t))
 <#
                 }
             }
@@ -297,18 +352,18 @@ namespace <#=entry.@namespace#>
         foreach (var g in transitionGroups.GroupBy(o => new {o.ParameterType}))
         {
 #>
-        private void HandleEvent(StateMachine<<#=stateType#>, <#=entry.name#>Event>.Transition transition<#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} param" #>)
+        private <#=(isAsync ? "async Task" : "void")#> HandleEvent(StateMachine<<#=stateType#>, <#=entry.name#>Event>.Transition transition<#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $", {g.Key.ParameterType} param" #>)
         {
             if (transition.IsReentry)
             {
                 switch (transition.Trigger)
                 {
 <#
-            foreach (var evt in g.Where(o => o.Internal).Select(o => o.Event).Distinct())
+            foreach (var evt in g.Where(o => o.IsReentry).Select(o => o.Event).Distinct())
             {
 #>
                     case <#=entry.name#>Event.<#=evt#>:
-                        _handleEventAction(new <#=entry.name#>Fire<#=evt#>ReentryEvent(transition.Source, <#=entry.settings.itemfieldname#><#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : ", param"#>));
+                        <#=(isAsync ? "await " : "")#>_handleEventAction(new <#=entry.name#>Fire<#=evt#>Reentry<#=(isAsync ? "Async" : "")#>Event(transition.Source, <#=entry.settings.itemfieldname#><#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : ", param"#>));
                         break;
 <#
             }
@@ -320,11 +375,11 @@ namespace <#=entry.@namespace#>
                 switch (transition.Trigger)
                 {
 <#
-            foreach (var evt in g.Where(o => !o.Internal).Select(o => o.Event).Distinct())
+            foreach (var evt in g.Where(o => !o.IsReentry).Select(o => o.Event).Distinct())
             {
 #>
                     case <#=entry.name#>Event.<#=evt#>:
-                        _handleEventAction(new <#=entry.name#>Fire<#=evt#>Event(transition.Source, transition.Destination, <#=entry.settings.itemfieldname#><#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : ", param"#>));
+                        <#=(isAsync ? "await " : "")#>_handleEventAction(new <#=entry.name#>Fire<#=evt#><#=(isAsync ? "Async" : "")#>Event(transition.Source, transition.Destination, <#=entry.settings.itemfieldname#><#=string.IsNullOrEmpty(g.Key.ParameterType) ? "" : ", param"#>));
                         break;
 <#
             }
@@ -339,19 +394,19 @@ namespace <#=entry.@namespace#>
         foreach (var g in transitionGroups.GroupBy(o => new { o.Event, o.ParameterType}))
         {
 #>
-        public void Fire<#=g.Key.Event#>(<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"{g.Key.ParameterType} parameter")#>)
+        public <#=(isAsync ? "async Task" : "void")#> Fire<#=g.Key.Event#><#=(isAsync ? "Async" : "")#>(<#=(string.IsNullOrEmpty(g.Key.ParameterType) ? "" : $"{g.Key.ParameterType} parameter")#>)
         {
 <#
             if (!string.IsNullOrEmpty(g.Key.ParameterType))
             {
 #>
-            Fire(<#=entry.name#>Event.<#=g.Key.Event#>, parameter);
+            <#=(isAsync ? "await " : "")#>Fire<#=(isAsync ? "Async" : "")#>(<#=entry.name#>Event.<#=g.Key.Event#>, parameter);
 <#
             }
             else
             {
 #>
-            Fire(<#=entry.name#>Event.<#=g.Key.Event#>);
+            <#=(isAsync ? "await " : "")#>Fire<#=(isAsync ? "Async" : "")#>(<#=entry.name#>Event.<#=g.Key.Event#>);
 <#
             }
 #>
@@ -365,23 +420,28 @@ namespace <#=entry.@namespace#>
             return _sm.CanFire(evt);
         }
 
-        public void Fire<T>(<#=entry.name#>Event evt, T parameter)
+        public <#=(isAsync ? "async Task" : "void")#> Fire<#=(isAsync ? "Async" : "")#><T>(<#=entry.name#>Event evt, T parameter)
         {
             if (!CanFire(evt))
             {
-                throw new ApplicationException($"Cannot fire event {evt} in the current state {_sm.State}");
+                throw new InvalidOperationException($"Cannot fire event {evt} in the current state {_sm.State}");
             }
             var param = GetParameter<T>(evt);
-            _sm.Fire(param, parameter);
+            <#=(isAsync ? "await " : "")#>_sm.Fire<#=(isAsync ? "Async" : "")#>(param, parameter);
         }
 
-        public void Fire(<#=entry.name#>Event evt)
+        public <#=(isAsync ? "async Task" : "void")#> Fire<#=(isAsync ? "Async" : "")#>(<#=entry.name#>Event evt)
         {
             if (!CanFire(evt))
             {
-                throw new ApplicationException($"Cannot fire event {evt} in the current state {_sm.State}");
+                throw new InvalidOperationException($"Cannot fire event {evt} in the current state {_sm.State}");
             }
-            _sm.Fire(evt);
+            <#=(isAsync ? "await " : "")#>_sm.Fire<#=(isAsync ? "Async" : "")#>(evt);
+        }
+
+        public string ToDotGraph()
+        {
+            return _sm.ToDotGraph();
         }
 
         private void AddParameter(<#=entry.name#>Event evt, Type paramType, StateMachine<<#=stateType#>, <#=entry.name#>Event>.TriggerWithParameters trigger)
@@ -404,23 +464,6 @@ namespace <#=entry.@namespace#>
             }
             return (StateMachine<<#=stateType#>, <#=entry.name#>Event>.TriggerWithParameters<T>)dict[typeof(T)];
         }
-
-        #region Transition events
-
-        private void OnTransitioned(StateMachine<<#=stateType#>, <#=entry.name#>Event>.Transition t)
-        {
-            // TODO: EVENT - $"Transitioned from state '{t.Source}' to state '{t.Destination}' with event {t.Trigger}"
-        }
-
-        private void OnTransitionDeclined(<#=stateType#> state, <#=entry.name#>Event e)
-        {
-            // TODO: EVENT - $"Transitioned from state '{t.Source}' to state '{t.Destination}' with event {t.Trigger}"
-            throw new ApplicationException($"Event '{e}' is not valid for state '{state}'");
-        }
-
-        #endregion
-
-
     }
 }
 <#
@@ -493,7 +536,7 @@ namespace <#=entry.@namespace#>
                             ParameterType = o.parametertype,
                             FromState = o.fromstate,
                             ToState = c.tostate,
-                            Internal = string.IsNullOrEmpty(c.tostate)
+                            IsReentry = string.IsNullOrEmpty(c.tostate) || c.tostate == o.fromstate
                         }));
                         if(o.@switch.@default != null)
                             list.Add(new TransitionGroup
@@ -502,7 +545,7 @@ namespace <#=entry.@namespace#>
                                 ParameterType = o.parametertype,
                                 FromState = o.fromstate,
                                 ToState = o.@switch.@default.tostate,
-                                Internal = string.IsNullOrEmpty(o.@switch.@default.tostate)
+                                IsReentry = string.IsNullOrEmpty(o.@switch.@default.tostate) || o.@switch.@default.tostate == o.fromstate
                             });
                     }
                     else
@@ -513,7 +556,7 @@ namespace <#=entry.@namespace#>
                             ParameterType = o.parametertype,
                             FromState = o.fromstate,
                             ToState = o.tostate,
-                            Internal = string.IsNullOrEmpty(o.tostate)
+                            IsReentry = string.IsNullOrEmpty(o.tostate) || o.fromstate == o.tostate
                         });
                     }
                     return list;
@@ -546,7 +589,7 @@ namespace <#=entry.@namespace#>
 
         public string FromState { get; set; }
 
-        public bool Internal { get; set; }
+        public bool IsReentry { get; set; }
     }
 
     public class XmlValidator
@@ -621,6 +664,7 @@ public const string Schema = @"<?xml version=""1.0"" encoding=""utf-8""?>
     <xs:attribute name=""event"" type=""xs:string"" use=""required""/>
     <xs:attribute name=""tostate"" type=""xs:string"" use=""optional""/>
     <xs:attribute name=""parameter-type"" type=""xs:string"" use=""optional""/>
+    <xs:attribute name=""ignore"" type=""xs:boolean"" use=""optional""/>
   </xs:complexType>
   
   <xs:complexType name=""Switch"">
@@ -629,11 +673,13 @@ public const string Schema = @"<?xml version=""1.0"" encoding=""utf-8""?>
         <xs:complexType>
           <xs:attribute name=""when"" type=""xs:string"" use=""required""/>
           <xs:attribute name=""tostate"" type=""xs:string"" use=""optional""/>
+          <xs:attribute name=""ignore"" type=""xs:boolean"" use=""optional""/>
         </xs:complexType>
       </xs:element>
       <xs:element name=""default"" minOccurs=""0"">
         <xs:complexType>
-          <xs:attribute name=""tostate"" type=""xs:string"" use=""required""/>
+          <xs:attribute name=""tostate"" type=""xs:string"" />
+          <xs:attribute name=""ignore"" type=""xs:boolean"" use=""optional""/>
         </xs:complexType>
       </xs:element>
     </xs:sequence>
@@ -646,6 +692,13 @@ public const string Schema = @"<?xml version=""1.0"" encoding=""utf-8""?>
       <xs:element name=""fire-event-base-type"" type=""xs:string"" minOccurs=""0""/>
       <xs:element name=""state-type"" type=""xs:string"" minOccurs=""0""/>
       <xs:element name=""static-state-class"" type=""xs:string"" minOccurs=""0""/>
+      <xs:element name=""injects"" minOccurs=""0"">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name=""inject"" type=""Inject"" minOccurs=""0"" maxOccurs=""unbounded""/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
       <xs:element name=""usings"" minOccurs=""0"">
         <xs:complexType>
           <xs:sequence>
@@ -653,6 +706,13 @@ public const string Schema = @"<?xml version=""1.0"" encoding=""utf-8""?>
           </xs:sequence>
         </xs:complexType>
       </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name=""Inject"">
+    <xs:all>
+      <xs:element name=""type"" type=""xs:string"" />
+      <xs:element name=""field-name"" type=""xs:string"" />
     </xs:all>
   </xs:complexType>
   
@@ -702,8 +762,21 @@ public partial class Settings
     public string statetype { get; set; }
     [XmlElementAttribute("static-state-class")]
     public string staticstateclass { get; set; }
+    [XmlArrayItemAttribute("inject", IsNullable = false)]
+    public List<Inject> injects { get; set; }= new List<Inject>();
     [XmlArrayItemAttribute("using", IsNullable = false)]
-    public List<string> usings { get; set; }
+    public List<string> usings { get; set; } = new List<string>();
+}
+
+[System.CodeDom.Compiler.GeneratedCodeAttribute("System.Xml", "4.0.30319.18408")]
+[Serializable]
+[DesignerCategoryAttribute("code")]
+public partial class Inject
+{
+
+    public string type { get; set; }
+    [XmlElementAttribute("field-name")]
+    public string fieldname { get; set; }
 }
 
 [System.CodeDom.Compiler.GeneratedCodeAttribute("System.Xml", "4.6.1087.0")]
@@ -733,6 +806,8 @@ public partial class SwitchCase
     public string when { get; set; }
     [XmlAttribute]
     public string tostate { get; set; }
+    [XmlAttribute]
+    public bool ignore { get; set; }
 }
 
 [System.CodeDom.Compiler.GeneratedCodeAttribute("System.Xml", "4.6.1087.0")]
@@ -744,6 +819,8 @@ public partial class SwitchDefault
 
     [XmlAttribute]
     public string tostate { get; set; }
+    [XmlAttribute]
+    public bool ignore { get; set; }
 }
 
 [System.CodeDom.Compiler.GeneratedCodeAttribute("System.Xml", "4.6.1087.0")]
@@ -761,6 +838,8 @@ public partial class Transition
     public string tostate { get; set; }
     [XmlAttributeAttribute("parameter-type")]
     public string parametertype { get; set; }
+    [XmlAttribute]
+    public bool ignore { get; set; }
 
     public Transition()
     {

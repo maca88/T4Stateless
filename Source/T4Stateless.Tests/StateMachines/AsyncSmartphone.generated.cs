@@ -8,9 +8,10 @@ using System;
 using System.Collections.Generic;
 using Stateless;
 
-namespace T4Stateless.Tests
+namespace T4Stateless.Tests.Async
 {
     using Models;
+    using System.Threading.Tasks;
 
     public enum SmartphoneEvent
     {
@@ -24,9 +25,9 @@ namespace T4Stateless.Tests
         Resume,
     }
 
-    public abstract class SmartphoneFireEvent
+    public abstract class SmartphoneFireAsyncEvent
     {
-        protected SmartphoneFireEvent(Smartphone item, SmartphoneEvent evt, bool isReentry)
+        protected SmartphoneFireAsyncEvent(Smartphone item, SmartphoneEvent evt, bool isReentry)
         {
             Smartphone = item;
             Event = evt;
@@ -40,9 +41,9 @@ namespace T4Stateless.Tests
         public bool IsReentry { get; }
     }
 
-    public abstract class SmartphoneTransitionEvent : SmartphoneFireEvent
+    public abstract class SmartphoneTransitionAsyncEvent : SmartphoneFireAsyncEvent
     {
-        protected SmartphoneTransitionEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item, SmartphoneEvent evt) : base(item, evt, false)
+        protected SmartphoneTransitionAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item, SmartphoneEvent evt) : base(item, evt, false)
         {
             OldState = oldState;
             NewState = newState;
@@ -53,9 +54,9 @@ namespace T4Stateless.Tests
         public SmartphoneState NewState { get; }
     }
 
-    public abstract class SmartphoneReentryEvent : SmartphoneFireEvent
+    public abstract class SmartphoneReentryAsyncEvent : SmartphoneFireAsyncEvent
     {
-        protected SmartphoneReentryEvent(SmartphoneState state, Smartphone item, SmartphoneEvent evt) : base(item, evt, true)
+        protected SmartphoneReentryAsyncEvent(SmartphoneState state, Smartphone item, SmartphoneEvent evt) : base(item, evt, true)
         {
             State = state;
         }
@@ -63,33 +64,23 @@ namespace T4Stateless.Tests
         public SmartphoneState State { get; }
     }
 
-    public class SmartphoneFireBootReentryEvent : SmartphoneReentryEvent
+    public class SmartphoneFireBootReentryAsyncEvent : SmartphoneReentryAsyncEvent
     {
-        public SmartphoneFireBootReentryEvent(SmartphoneState state, Smartphone item) : base(state, item, SmartphoneEvent.Boot)
+        public SmartphoneFireBootReentryAsyncEvent(SmartphoneState state, Smartphone item) : base(state, item, SmartphoneEvent.Boot)
         {
         }
     }
 
-    public class SmartphoneFireBootEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireBootAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireBootEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Boot)
+        public SmartphoneFireBootAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Boot)
         {
         }
     }
 
-    public class SmartphoneFireCallEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireCallAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireCallEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item, string parameter) : base(oldState, newState, item, SmartphoneEvent.Call)
-        {
-            Parameter = parameter;
-        }
-
-        public string Parameter { get; }
-    }
-
-    public class SmartphoneFireCallReentryEvent : SmartphoneReentryEvent
-    {
-        public SmartphoneFireCallReentryEvent(SmartphoneState state, Smartphone item, string parameter) : base(state, item, SmartphoneEvent.Call)
+        public SmartphoneFireCallAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item, string parameter) : base(oldState, newState, item, SmartphoneEvent.Call)
         {
             Parameter = parameter;
         }
@@ -97,51 +88,61 @@ namespace T4Stateless.Tests
         public string Parameter { get; }
     }
 
-    public class SmartphoneFireTurnOffEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireCallReentryAsyncEvent : SmartphoneReentryAsyncEvent
     {
-        public SmartphoneFireTurnOffEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.TurnOff)
+        public SmartphoneFireCallReentryAsyncEvent(SmartphoneState state, Smartphone item, string parameter) : base(state, item, SmartphoneEvent.Call)
+        {
+            Parameter = parameter;
+        }
+
+        public string Parameter { get; }
+    }
+
+    public class SmartphoneFireTurnOffAsyncEvent : SmartphoneTransitionAsyncEvent
+    {
+        public SmartphoneFireTurnOffAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.TurnOff)
         {
         }
     }
 
-    public class SmartphoneFireCancelEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireCancelAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireCancelEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Cancel)
+        public SmartphoneFireCancelAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Cancel)
         {
         }
     }
 
-    public class SmartphoneFireConnectEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireConnectAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireConnectEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Connect)
+        public SmartphoneFireConnectAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Connect)
         {
         }
     }
 
-    public class SmartphoneFireHungUpEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireHungUpAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireHungUpEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.HungUp)
+        public SmartphoneFireHungUpAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.HungUp)
         {
         }
     }
 
-    public class SmartphoneFirePlaceOnHoldEvent : SmartphoneTransitionEvent
+    public class SmartphoneFirePlaceOnHoldAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFirePlaceOnHoldEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.PlaceOnHold)
+        public SmartphoneFirePlaceOnHoldAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.PlaceOnHold)
         {
         }
     }
 
-    public class SmartphoneFireResumeEvent : SmartphoneTransitionEvent
+    public class SmartphoneFireResumeAsyncEvent : SmartphoneTransitionAsyncEvent
     {
-        public SmartphoneFireResumeEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Resume)
+        public SmartphoneFireResumeAsyncEvent(SmartphoneState oldState, SmartphoneState newState, Smartphone item) : base(oldState, newState, item, SmartphoneEvent.Resume)
         {
         }
     }
 
-    public class SmartphoneFireResumeReentryEvent : SmartphoneReentryEvent
+    public class SmartphoneFireResumeReentryAsyncEvent : SmartphoneReentryAsyncEvent
     {
-        public SmartphoneFireResumeReentryEvent(SmartphoneState state, Smartphone item) : base(state, item, SmartphoneEvent.Resume)
+        public SmartphoneFireResumeReentryAsyncEvent(SmartphoneState state, Smartphone item) : base(state, item, SmartphoneEvent.Resume)
         {
         }
     }
@@ -156,12 +157,12 @@ namespace T4Stateless.Tests
     {
         private readonly StateMachine<SmartphoneState, SmartphoneEvent> _sm;
         private readonly Smartphone _item;
-        private readonly Action<SmartphoneFireEvent> _handleEventAction;
+        private readonly Func<SmartphoneFireAsyncEvent, Task> _handleEventAction;
         private Dictionary<SmartphoneEvent, Dictionary<Type, StateMachine<SmartphoneState, SmartphoneEvent>.TriggerWithParameters>> _parameters =
             new Dictionary<SmartphoneEvent, Dictionary<Type, StateMachine<SmartphoneState, SmartphoneEvent>.TriggerWithParameters>>();
         private TestService _service;
 
-        public SmartphoneStateMachine(Smartphone item, Func<Smartphone, SmartphoneState> stateAccessor, Action<Smartphone, SmartphoneState> stateMutator, Action<SmartphoneFireEvent> handleEventAction, TestService service)
+        public SmartphoneStateMachine(Smartphone item, Func<Smartphone, SmartphoneState> stateAccessor, Action<Smartphone, SmartphoneState> stateMutator, Func<SmartphoneFireAsyncEvent, Task> handleEventAction, TestService service)
         {
             if (item == null)
             {
@@ -189,39 +190,36 @@ namespace T4Stateless.Tests
             _sm.Configure(SmartphoneState.Off)
                 .PermitReentryIf(SmartphoneEvent.Boot, predicateOffBoot1, "BatteryLevel < 5")
                 .PermitIf(SmartphoneEvent.Boot, SmartphoneState.Idle, () => !predicateOffBoot1(), "Otherwise")
-                .OnEntryFrom(SmartphoneEvent.Boot, t => HandleEvent(t))
-                .OnEntryFrom(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
-                .OnEntryFrom(SmartphoneEvent.TurnOff, t => HandleEvent(t))
-                .OnEntryFrom(SmartphoneEvent.Resume, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Boot, t => HandleEvent(t))
+                .OnEntryFromAsync(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
+                .OnEntryFromAsync(SmartphoneEvent.TurnOff, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Resume, t => HandleEvent(t))
             ;
 
             Func<bool> predicateIdleCall1 = () => _item.SimInserted;
             Func<bool> predicateIdleCall2 = () => _item.BatteryLevel < 5;
-            Func<bool> predicateIdleCall3 = () => _service.IsValid(_item.BatteryLevel > 90);
             _sm.Configure(SmartphoneState.Idle)
                 .PermitIf(SmartphoneEvent.Call, SmartphoneState.Calling, predicateIdleCall1, "SimInserted")
                 .PermitIf(SmartphoneEvent.Call, SmartphoneState.Off, predicateIdleCall2, "BatteryLevel < 5")
-                .IgnoreIf(SmartphoneEvent.Call, predicateIdleCall3, "_service.IsValid(BatteryLevel > 90)")
-                .IgnoreIf(SmartphoneEvent.Call, () => !predicateIdleCall1() && !predicateIdleCall2() && !predicateIdleCall3(), "Otherwise")
+                .PermitReentryIf(SmartphoneEvent.Call, () => !predicateIdleCall1() && !predicateIdleCall2(), "Otherwise")
                 .Permit(SmartphoneEvent.TurnOff, SmartphoneState.Off)
-                .OnEntryFrom(SmartphoneEvent.Boot, t => HandleEvent(t))
-                .OnEntryFrom(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
-                .OnEntryFrom(SmartphoneEvent.Cancel, t => HandleEvent(t))
-                .OnEntryFrom(SmartphoneEvent.HungUp, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Boot, t => HandleEvent(t))
+                .OnEntryFromAsync(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
+                .OnEntryFromAsync(SmartphoneEvent.Cancel, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.HungUp, t => HandleEvent(t))
             ;
 
             _sm.Configure(SmartphoneState.Calling)
                 .Permit(SmartphoneEvent.Cancel, SmartphoneState.Idle)
                 .Permit(SmartphoneEvent.Connect, SmartphoneState.CallConnected)
-                .Ignore(SmartphoneEvent.Call)
-                .OnEntryFrom(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
+                .OnEntryFromAsync(GetParameter<string>(SmartphoneEvent.Call), (p, t) => HandleEvent(t, p))
             ;
 
             _sm.Configure(SmartphoneState.CallConnected)
                 .Permit(SmartphoneEvent.HungUp, SmartphoneState.Idle)
                 .Permit(SmartphoneEvent.PlaceOnHold, SmartphoneState.CallOnHold)
-                .OnEntryFrom(SmartphoneEvent.Connect, t => HandleEvent(t))
-                .OnEntryFrom(SmartphoneEvent.Resume, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Connect, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Resume, t => HandleEvent(t))
             ;
 
             Func<bool> predicateCallOnHoldResume1 = () => _item.BatteryLevel < 5;
@@ -230,23 +228,23 @@ namespace T4Stateless.Tests
                 .PermitIf(SmartphoneEvent.Resume, SmartphoneState.Off, predicateCallOnHoldResume1, "BatteryLevel < 5")
                 .PermitReentryIf(SmartphoneEvent.Resume, predicateCallOnHoldResume2, "Locked")
                 .PermitIf(SmartphoneEvent.Resume, SmartphoneState.CallConnected, () => !predicateCallOnHoldResume1() && !predicateCallOnHoldResume2(), "Otherwise")
-                .OnEntryFrom(SmartphoneEvent.PlaceOnHold, t => HandleEvent(t))
-                .OnEntryFrom(SmartphoneEvent.Resume, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.PlaceOnHold, t => HandleEvent(t))
+                .OnEntryFromAsync(SmartphoneEvent.Resume, t => HandleEvent(t))
             ;
 
         }
 
-        private void HandleEvent(StateMachine<SmartphoneState, SmartphoneEvent>.Transition transition)
+        private async Task HandleEvent(StateMachine<SmartphoneState, SmartphoneEvent>.Transition transition)
         {
             if (transition.IsReentry)
             {
                 switch (transition.Trigger)
                 {
                     case SmartphoneEvent.Boot:
-                        _handleEventAction(new SmartphoneFireBootReentryEvent(transition.Source, _item));
+                        await _handleEventAction(new SmartphoneFireBootReentryAsyncEvent(transition.Source, _item));
                         break;
                     case SmartphoneEvent.Resume:
-                        _handleEventAction(new SmartphoneFireResumeReentryEvent(transition.Source, _item));
+                        await _handleEventAction(new SmartphoneFireResumeReentryAsyncEvent(transition.Source, _item));
                         break;
                 }
             }
@@ -255,38 +253,38 @@ namespace T4Stateless.Tests
                 switch (transition.Trigger)
                 {
                     case SmartphoneEvent.Boot:
-                        _handleEventAction(new SmartphoneFireBootEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireBootAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.TurnOff:
-                        _handleEventAction(new SmartphoneFireTurnOffEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireTurnOffAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.Cancel:
-                        _handleEventAction(new SmartphoneFireCancelEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireCancelAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.Connect:
-                        _handleEventAction(new SmartphoneFireConnectEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireConnectAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.HungUp:
-                        _handleEventAction(new SmartphoneFireHungUpEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireHungUpAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.PlaceOnHold:
-                        _handleEventAction(new SmartphoneFirePlaceOnHoldEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFirePlaceOnHoldAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                     case SmartphoneEvent.Resume:
-                        _handleEventAction(new SmartphoneFireResumeEvent(transition.Source, transition.Destination, _item));
+                        await _handleEventAction(new SmartphoneFireResumeAsyncEvent(transition.Source, transition.Destination, _item));
                         break;
                 }
             }
         }
 
-        private void HandleEvent(StateMachine<SmartphoneState, SmartphoneEvent>.Transition transition, string param)
+        private async Task HandleEvent(StateMachine<SmartphoneState, SmartphoneEvent>.Transition transition, string param)
         {
             if (transition.IsReentry)
             {
                 switch (transition.Trigger)
                 {
                     case SmartphoneEvent.Call:
-                        _handleEventAction(new SmartphoneFireCallReentryEvent(transition.Source, _item, param));
+                        await _handleEventAction(new SmartphoneFireCallReentryAsyncEvent(transition.Source, _item, param));
                         break;
                 }
             }
@@ -295,50 +293,50 @@ namespace T4Stateless.Tests
                 switch (transition.Trigger)
                 {
                     case SmartphoneEvent.Call:
-                        _handleEventAction(new SmartphoneFireCallEvent(transition.Source, transition.Destination, _item, param));
+                        await _handleEventAction(new SmartphoneFireCallAsyncEvent(transition.Source, transition.Destination, _item, param));
                         break;
                 }
             }
         }
 
-        public void FireBoot()
+        public async Task FireBootAsync()
         {
-            Fire(SmartphoneEvent.Boot);
+            await FireAsync(SmartphoneEvent.Boot);
         }
 
-        public void FireCall(string parameter)
+        public async Task FireCallAsync(string parameter)
         {
-            Fire(SmartphoneEvent.Call, parameter);
+            await FireAsync(SmartphoneEvent.Call, parameter);
         }
 
-        public void FireTurnOff()
+        public async Task FireTurnOffAsync()
         {
-            Fire(SmartphoneEvent.TurnOff);
+            await FireAsync(SmartphoneEvent.TurnOff);
         }
 
-        public void FireCancel()
+        public async Task FireCancelAsync()
         {
-            Fire(SmartphoneEvent.Cancel);
+            await FireAsync(SmartphoneEvent.Cancel);
         }
 
-        public void FireConnect()
+        public async Task FireConnectAsync()
         {
-            Fire(SmartphoneEvent.Connect);
+            await FireAsync(SmartphoneEvent.Connect);
         }
 
-        public void FireHungUp()
+        public async Task FireHungUpAsync()
         {
-            Fire(SmartphoneEvent.HungUp);
+            await FireAsync(SmartphoneEvent.HungUp);
         }
 
-        public void FirePlaceOnHold()
+        public async Task FirePlaceOnHoldAsync()
         {
-            Fire(SmartphoneEvent.PlaceOnHold);
+            await FireAsync(SmartphoneEvent.PlaceOnHold);
         }
 
-        public void FireResume()
+        public async Task FireResumeAsync()
         {
-            Fire(SmartphoneEvent.Resume);
+            await FireAsync(SmartphoneEvent.Resume);
         }
 
         public bool CanFire(SmartphoneEvent evt)
@@ -346,23 +344,23 @@ namespace T4Stateless.Tests
             return _sm.CanFire(evt);
         }
 
-        public void Fire<T>(SmartphoneEvent evt, T parameter)
+        public async Task FireAsync<T>(SmartphoneEvent evt, T parameter)
         {
             if (!CanFire(evt))
             {
                 throw new InvalidOperationException($"Cannot fire event {evt} in the current state {_sm.State}");
             }
             var param = GetParameter<T>(evt);
-            _sm.Fire(param, parameter);
+            await _sm.FireAsync(param, parameter);
         }
 
-        public void Fire(SmartphoneEvent evt)
+        public async Task FireAsync(SmartphoneEvent evt)
         {
             if (!CanFire(evt))
             {
                 throw new InvalidOperationException($"Cannot fire event {evt} in the current state {_sm.State}");
             }
-            _sm.Fire(evt);
+            await _sm.FireAsync(evt);
         }
 
         public string ToDotGraph()

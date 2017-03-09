@@ -56,13 +56,19 @@
   <ItemGroup>
     <Compile Include="Models\Smartphone.cs" />
     <Compile Include="Models\SmartphoneState.cs" />
+    <Compile Include="AsyncSmartphoneTests.cs" />
     <Compile Include="SmartphoneTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StateMachines\AsyncSmartphone.generated.cs">
+      <DependentUpon>T4Stateless.tt</DependentUpon>
+    </Compile>
     <Compile Include="StateMachines\Smartphone.generated.cs">
       <DependentUpon>T4Stateless.tt</DependentUpon>
     </Compile>
+    <Compile Include="StateMachines\TestService.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="StateMachines\AsyncSmartphone.xml" />
     <Content Include="StateMachines\Smartphone.xml" />
     <Content Include="StateMachines\T4Stateless.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
